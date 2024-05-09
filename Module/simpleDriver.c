@@ -22,8 +22,13 @@ MODULE_LICENSE("GPL");
 #define ENCRYPT_MODE 0
 #define DECRYPT_MODE 1
 
-#define IOCTL_SET_KEY _IOW('q', 1, int)
-#define IOCTL_SET_MODE _IOW('q', 2, int)
+// #define IOCTL_SET_KEY _IOW('q', 1, int)
+// #define IOCTL_SET_MODE _IOW('q', 2, int)
+
+//#define IOCTL_SET_KEY 2
+#define IOCTL_SET_MOD 3
+
+#define KEY 5
 
 struct encypt_data {
     int key;
@@ -102,7 +107,7 @@ static ssize_t myWrite(struct file *fs, const char __user *buf, size_t hsize, lo
 static ssize_t myRead(struct file *fs, char __user *buf, size_t hsize, loff_t *off) {
     struct encypt_data *data;
     data = (struct encypt_data *) fs->private_data;
-    int bytes_to_read = 0;
+    size_t bytes_to_read = 0;
 
     if (data->message == NULL){
         printk(KERN_INFO "No message to read.\n");
@@ -122,7 +127,7 @@ static ssize_t myRead(struct file *fs, char __user *buf, size_t hsize, loff_t *o
 
     printk(KERN_INFO "We read : %lu \n", bytes_to_read);
 
-    return bytes_read;
+    return bytes_to_read;
 
 }
 
@@ -135,7 +140,7 @@ static int myOpen(struct inode *inode, struct file *fs) {
         return -1;
     }
 
-    data->key = 0;
+    data->key = KEY;
     data->mode = -1;
     data->message = NULL;
 
@@ -159,12 +164,20 @@ static long myIoCtl(struct file *fs, unsigned int command, unsigned long info) {
     struct encypt_data *data;
     data = (struct encypt_data*) fs->private_data;
 
+    printk(KERN_INFO "INSIDE IOCTL\n");
+
     switch (command) {
-        case IOCTL_SET_KEY:
-            data->key = info;
-            break;
-        case IOCTL_SET_MODE:
-            data->mode = info;
+        // case IOCTL_SET_KEY:
+        //     if(copy_from_user(&(data->key), (int *)info, sizeof(int)) > 0){
+        //         printk(KERN_ERR "ERROR GETTING THE KEY\n");
+        //     }
+        //     printk(KERN_INFO "the key: %d\n", data->key);
+        //     break;
+        case IOCTL_SET_MOD:
+            if(copy_from_user(&(data->mode), (int *)info, sizeof(int)) > 0){
+                printk(KERN_ERR "ERROR GETTING THE MODE\n");
+            }
+            printk(KERN_INFO "the mode: %d\n", data->mode);
             break;
         default:
             // printf("failed in myioctl\n");
