@@ -19,76 +19,160 @@ MODULE_AUTHOR("Melahi Lylia");
 MODULE_DESCRIPTION("A simple encryption driver");
 MODULE_LICENSE("GPL");
 
-// data structure used for keeping count of how many times data is called
-struct myds {
-    int count;
-} myds;
+#define ENCRYPT_MODE 0
+#define DECRYPT_MODE 1
 
-// this write function increments the data structure's count every time it's called
-// NOTE - data is not physically written anywhere
+#define IOCTL_SET_KEY _IOW('q', 1, int)
+#define IOCTL_SET_MODE _IOW('q', 2, int)
+
+struct encypt_data {
+    int key;
+    int mode;
+    char *message;
+} encypt_data;
+
+//function to encrypte message by shifting it according to the value of key
+void encrypt_message(char *message, int key) {
+    int i = 0;
+    char ch = '\0';
+    while((ch = message[i])!= '\0'){
+        if (ch >= 'A' && ch <= 'Z') {
+            ch = (ch + key - 'A') % 26 + 'A';
+        } else if (ch >= 'a' && ch <= 'z') {
+            ch = (ch + key - 'a') % 26 + 'a';
+        }
+        message[i] = ch;
+        i++;
+    }
+}
+
+//function to decrypte message by shifting it back according to the value of key
+void decrypt_message(char *message, int key) {  
+    int i = 0;
+    char ch = '\0';
+    while((ch = message[i])!= '\0'){
+        if (ch >= 'A' && ch <= 'Z') {
+            ch = (ch - key - 'A' + 26) % 26 + 'A';
+        } else if (ch >= 'a' && ch <= 'z') {
+            ch = (ch - key - 'a' + 26) % 26 + 'a';
+        }
+        message[i] = ch;
+        i++;
+    }
+}
+//reads the user's message 
 // returns how many bytes were passed in
 static ssize_t myWrite(struct file *fs, const char __user *buf, size_t hsize, loff_t *off) {
-    struct myds *ds;
+    struct encypt_data *data;
 
-    ds = (struct myds *) fs->private_data;
-    ds->count = ds->count + 1;
-    printk(KERN_INFO "We wrote : %lu on write number %d\n", hsize, ds->count);
+    data = (struct encypt_data *) fs->private_data;
+
+    if (data->message != NULL) {
+        vfree(data->message); // Free previously allocated memory
+        data->message = NULL;
+    }
+
+    data->message = vmalloc(hsize + 1); // Allocate memory for message buffer
+    if (data->message == NULL){
+        printk(KERN_ERR "Can not vmalloc.\n");// Memory allocation failed
+        return -1; 
+    }
+
+
+    if (copy_from_user(data->message, buf, hsize) > 0) {
+        vfree(data->message);
+        // Error copying data from user space
+        printk(KERN_ERR "ERROR copying user message.\n");
+        return -1;
+    }
+
+    data->message[hsize] = '\0'; // Null-terminate the string
+
+    if (data->mode == ENCRYPT_MODE) {
+        encrypt_message(data->message, data->key);
+    } else if (data->mode == DECRYPT_MODE) {
+        decrypt_message(data->message, data->key);
+    } else{
+        printk(KERN_ERR "ERROR SPECIFYING THE MODE. \n");
+    }
 
     return hsize;
 }
 
 static ssize_t myRead(struct file *fs, char __user *buf, size_t hsize, loff_t *off) {
-    struct myds *ds;
+    struct encypt_data *data;
+    data = (struct encypt_data *) fs->private_data;
+    int bytes_to_read = 0;
 
-    ds = (struct myds *) fs->private_data;
-    ds->count = ds->count + 1;
-    printk(KERN_INFO "We read : %lu on r/w number %d\n", hsize, ds->count);
+    if (data->message == NULL){
+        printk(KERN_INFO "No message to read.\n");
+        return 0; // No message to read
+    }
+    // Determine the number of bytes to copy
+    bytes_to_read = strlen(data->message);
+    if(bytes_to_read > hsize){
+        bytes_to_read = hsize;
+    }
 
-    return 0;
+    // Copy data from kernel space to user space
+    if (copy_to_user(buf, data->message, bytes_to_read)) {
+        printk(KERN_ERR "ERROR READING THE RESULT. \n");
+        return -1; // Error copying data to user space
+    }
+
+    printk(KERN_INFO "We read : %lu \n", bytes_to_read);
+
+    return bytes_read;
+
 }
 
 static int myOpen(struct inode *inode, struct file *fs) {
-    struct myds *ds;
-    ds = vmalloc(sizeof(struct myds));
+    struct encypt_data *data;
+    data = vmalloc(sizeof(struct encypt_data));
 
-    if (ds == 0) {
+    if (data == 0) {
         printk(KERN_ERR "Can not vmalloc. File not opened.\n");
         return -1;
     }
 
-    ds->count = 0;
-    fs->private_data = ds;
+    data->key = 0;
+    data->mode = -1;
+    data->message = NULL;
+
+    fs->private_data = data;
 
     return 0;
 }
 
 static int myClose(struct inode *inode, struct file *fs) {
-    struct myds *ds;
+    struct encypt_data *data;
+    data = (struct encypt_data*) fs->private_data;
+    vfree(data);
 
-    ds = (struct myds*) fs->private_data;
-    vfree(ds);
+    printk(KERN_INFO "closed\n");
 
     return 0;
 }
 
-// this is a way to deal with device files where there may not be
-// basically counts how many times "write" was called
-static long myIoCtl(struct file *fs, unsigned int command, unsigned long data) {
-    int *count;
-    struct myds *ds;
-    ds = (struct myds*) fs->private_data;
+static long myIoCtl(struct file *fs, unsigned int command, unsigned long info) {
+    //static long device_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param)
+    struct encypt_data *data;
+    data = (struct encypt_data*) fs->private_data;
 
-    if (command != 3) {
-        // printf("failed in myioctl\n");
-        printk(KERN_ERR "failed in myioctl.\n");
-        return -1;
+    switch (command) {
+        case IOCTL_SET_KEY:
+            data->key = info;
+            break;
+        case IOCTL_SET_MODE:
+            data->mode = info;
+            break;
+        default:
+            // printf("failed in myioctl\n");
+            printk(KERN_ERR "failed in myioctl.\n");
+            return -1;
     }
-
-    count = (int *) data;
-    int bytesNotCopied = copy_to_user(count, &(ds->count), sizeof(int));
-    // *count = ds->count;
-
-    return bytesNotCopied;
+    printk(KERN_INFO "succeed in myioctl.\n");
+    return 0;
 }
 
 // another data structure
