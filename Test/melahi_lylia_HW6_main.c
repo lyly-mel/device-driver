@@ -23,25 +23,25 @@
 #define IOCTL_SET_MODE _IOW('q', 2, int)
 #define MAX_TEXT_SIZE 512
 
-void get_user_key(int key){
+void get_user_key(int *key){
     printf("Enter an integer key.\n");
-    int scan_key = scanf("%d", &key);
+    int scan_key = scanf("%d", key);
     while (scan_key != 1) {
         // Input was not a valid integer
         printf("Invalid input. Please enter an integer.\n");
         while (getchar() != '\n'); // Clear the input buffer
-        scan_key = scanf("%d", &key); // prompt the user to enter the key again
+        scan_key = scanf("%d", key); // prompt the user to enter the key again
     } 
 }
 
-void get_user_mode(int mode){
+void get_user_mode(int *mode){
     printf("Enter the mode (0 for encrypt, 1 for decrypt).\n");
-    int scan_mode = scanf("%d", &mode);
-    while (mode != 0 && mode != 1) {
+    int scan_mode = scanf("%d", mode);
+    while (*mode != 0 && *mode != 1) {
         // Input was not a valid integer
         printf("Invalid input. Please enter 0 or 1.\n");
         while (getchar() != '\n'); // Clear the input buffer
-        scan_mode = scanf("%d", &mode); // prompt the user to enter the key again
+        scan_mode = scanf("%d", mode); // prompt the user to enter the key again
     } 
 }
 
@@ -76,24 +76,24 @@ int main (int argc, char * argv[])
     // get key from the user   
     get_user_key(&key);
     //set the key in the device driver using ioctl
-    set_key(fd, key); 
+    //set_key(fd, key); 
 
     // get mode from the user
     get_user_mode(&mode);
     //set the mode in the device driver using ioctl
-    set_mode(fd, mode);
+    //set_mode(fd, mode);
 
     // Write message to the device file
-    write(fd, message, strlen(message));
+    //write(fd, message, strlen(message));
     printf("result from write\n");
 
     // Read the result from the device file
     char result[MAX_TEXT_SIZE];
-    read(fd, result, sizeof(result));
+    //read(fd, result, sizeof(result));
     printf("The result: %s\n", result);
 
     // Close the device file
-    close(fd);
+    //close(fd);
 
     return 0;
 }
