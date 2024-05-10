@@ -7,7 +7,9 @@
 *
 * File:: melahi_lylia_HW6_main.c
 *
-* Description:: 
+* Description:: a user in terface for the device drive 
+* encryption. It promps the user for a text input, a key and 
+* encryption or decryption mode.Then it will print the result
 **************************************************************/
 
 #include <stdio.h>
@@ -21,7 +23,7 @@
 #define DEVICE_FILE "/dev/simpleDriver"
 #define IOCTL_SET_KEY 4
 #define IOCTL_SET_MOD 3
-#define MAX_TEXT_SIZE 1024 //max size for the user text
+#define MAX_TEXT_SIZE 512 //max size for the user text
 
 void get_user_key(int *key){
     printf("Enter an integer key.\n");
