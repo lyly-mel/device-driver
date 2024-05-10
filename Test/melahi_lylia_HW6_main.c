@@ -19,15 +19,14 @@
 #include <errno.h>
 
 #define DEVICE_FILE "/dev/simpleDriver"
-// #define IOCTL_SET_KEY _IOW('q', 1, int)
-// #define IOCTL_SET_MODE _IOW('q', 2, int)
-#define IOCTL_SET_KEY 2
+#define IOCTL_SET_KEY 4
 #define IOCTL_SET_MOD 3
-#define MAX_TEXT_SIZE 512
+#define MAX_TEXT_SIZE 1024 //max size for the user text
 
 void get_user_key(int *key){
     printf("Enter an integer key.\n");
     int scan_key = scanf("%d", key);
+    //keep looking while the input is not valid
     while (scan_key != 1) {
         // Input was not a valid integer
         printf("Invalid input. Please enter an integer.\n");
@@ -39,6 +38,7 @@ void get_user_key(int *key){
 void get_user_mode(int *mode){
     printf("Enter the mode (0 for encrypt, 1 for decrypt).\n");
     int scan_mode = scanf("%d", mode);
+    //keep looking while the input is not valid
     while (*mode != 0 && *mode != 1) {
         // Input was not a valid integer
         printf("Invalid input. Please enter 0 or 1.\n");
@@ -47,11 +47,13 @@ void get_user_mode(int *mode){
     } 
 }
 
-// void set_key(int fd, int key) {
-//     ioctl(fd, IOCTL_SET_KEY, &key);
-// }
+void set_key(int fd, int key) {
+    //call ioctl in the device driver to set the key 
+    ioctl(fd, IOCTL_SET_KEY, &key);
+}
 
 void set_mode(int fd, int mode) {
+    //call ioctl in the device driver to set the mode
     ioctl(fd, IOCTL_SET_MOD, &mode);
 }
 
@@ -60,6 +62,7 @@ int main (int argc, char * argv[])
     int fd, key, mode;
     char message[MAX_TEXT_SIZE];
 
+    //open the file and return its file descriptor
     fd = open(DEVICE_FILE, O_RDWR);
     printf("Returned from open file, %d\n", fd);
     if(fd < 0) {
@@ -72,14 +75,14 @@ int main (int argc, char * argv[])
     }
 
     // get message from the user
-    printf("Enter the message to encrypt/decrypt.\n");
+    printf("Enter the message to be encrypted/decrypted.\n");
     fgets(message, sizeof(message), stdin);
 
-    // // get key from the user   
-    // get_user_key(&key);
-    // //set the key in the device driver using ioctl
-    // set_key(fd, key); 
-    // printf("the key entered %d\n", key);
+    // get key from the user   
+    get_user_key(&key);
+    //set the key in the device driver using ioctl
+    set_key(fd, key); 
+    printf("the key entered %d\n", key);
 
     // get mode from the user
     get_user_mode(&mode);
@@ -88,8 +91,7 @@ int main (int argc, char * argv[])
     printf("the mode entered %d\n", mode);
 
     // Write message to the device file
-    size_t theWrite = write(fd, message, strlen(message));
-    printf("result from write %ld\n", theWrite);
+    write(fd, message, strlen(message));
 
     // Read the result from the device file
     char result[MAX_TEXT_SIZE];
