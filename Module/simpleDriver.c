@@ -19,16 +19,12 @@ MODULE_AUTHOR("Melahi Lylia");
 MODULE_DESCRIPTION("A simple encryption driver");
 MODULE_LICENSE("GPL");
 
-#define ENCRYPT_MODE 0
-#define DECRYPT_MODE 1
+#define ENCRYPT_MODE 0 //if mode set to 0: encrypt the message
+#define DECRYPT_MODE 1 //if mode set to 1: decrypt the message
 
-// #define IOCTL_SET_KEY _IOW('q', 1, int)
-// #define IOCTL_SET_MODE _IOW('q', 2, int)
-
-//#define IOCTL_SET_KEY 2
-#define IOCTL_SET_MOD 3
-
-#define KEY 5
+#define IOCTL_SET_KEY 4 //command 4 to set the key to the user key
+#define IOCTL_SET_MOD 3 //command 3 to set the mode to the user mode
+#define DEFAULT_KEY 0 //0 is the default key value if no key is provided
 
 struct encypt_data {
     int key;
@@ -40,10 +36,11 @@ struct encypt_data {
 void encrypt_message(char *message, int key) {
     int i = 0;
     char ch = '\0';
+    //itterat through the message char by char
     while((ch = message[i])!= '\0'){
-        if (ch >= 'A' && ch <= 'Z') {
+        if (ch >= 'A' && ch <= 'Z') { //encrypt uppercase letters
             ch = (ch + key - 'A') % 26 + 'A';
-        } else if (ch >= 'a' && ch <= 'z') {
+        } else if (ch >= 'a' && ch <= 'z') { //encrypt lower case letters
             ch = (ch + key - 'a') % 26 + 'a';
         }
         message[i] = ch;
@@ -55,21 +52,21 @@ void encrypt_message(char *message, int key) {
 void decrypt_message(char *message, int key) {  
     int i = 0;
     char ch = '\0';
+    //itterat through the message char by char
     while((ch = message[i])!= '\0'){
         if (ch >= 'A' && ch <= 'Z') {
-            ch = (ch - key - 'A' + 26) % 26 + 'A';
+            ch = (ch - key - 'A' + 26) % 26 + 'A';//decrypt uppercase letters
         } else if (ch >= 'a' && ch <= 'z') {
-            ch = (ch - key - 'a' + 26) % 26 + 'a';
+            ch = (ch - key - 'a' + 26) % 26 + 'a';//decrypt lowercase letters
         }
         message[i] = ch;
         i++;
     }
 }
-//reads the user's message 
-// returns how many bytes were passed in
+//reads the user's message, and write it to the message varibale
+//returns how many bytes were passed in
 static ssize_t myWrite(struct file *fs, const char __user *buf, size_t hsize, loff_t *off) {
     struct encypt_data *data;
-
     data = (struct encypt_data *) fs->private_data;
 
     if (data->message != NULL) {
@@ -83,7 +80,7 @@ static ssize_t myWrite(struct file *fs, const char __user *buf, size_t hsize, lo
         return -1; 
     }
 
-
+    //copy from the user's buffer to the message variabel
     if (copy_from_user(data->message, buf, hsize) > 0) {
         vfree(data->message);
         // Error copying data from user space
@@ -93,14 +90,14 @@ static ssize_t myWrite(struct file *fs, const char __user *buf, size_t hsize, lo
 
     data->message[hsize] = '\0'; // Null-terminate the string
 
-    if (data->mode == ENCRYPT_MODE) {
+    if (data->mode == ENCRYPT_MODE) { //encrypt the message 
         encrypt_message(data->message, data->key);
-    } else if (data->mode == DECRYPT_MODE) {
+    } else if (data->mode == DECRYPT_MODE) { //decrypt the message
         decrypt_message(data->message, data->key);
     } else{
         printk(KERN_ERR "ERROR SPECIFYING THE MODE. \n");
     }
-
+    //return the bytes copyed from the user 
     return hsize;
 }
 
@@ -115,6 +112,9 @@ static ssize_t myRead(struct file *fs, char __user *buf, size_t hsize, loff_t *o
     }
     // Determine the number of bytes to copy
     bytes_to_read = strlen(data->message);
+
+    //if the size of the message is bigger than user's buffer, 
+    //the size to read is the size of the user's buffer
     if(bytes_to_read > hsize){
         bytes_to_read = hsize;
     }
@@ -127,6 +127,7 @@ static ssize_t myRead(struct file *fs, char __user *buf, size_t hsize, loff_t *o
 
     printk(KERN_INFO "We read : %lu \n", bytes_to_read);
 
+    //return the bytes read
     return bytes_to_read;
 
 }
@@ -139,9 +140,9 @@ static int myOpen(struct inode *inode, struct file *fs) {
         printk(KERN_ERR "Can not vmalloc. File not opened.\n");
         return -1;
     }
-
-    data->key = KEY;
-    data->mode = -1;
+    //initialize the encrypt_data structure
+    data->key = DEFAULT_KEY; //set the key to the default value
+    data->mode = ENCRYPT_MODE;//the default value for mode is encryption
     data->message = NULL;
 
     fs->private_data = data;
@@ -152,6 +153,9 @@ static int myOpen(struct inode *inode, struct file *fs) {
 static int myClose(struct inode *inode, struct file *fs) {
     struct encypt_data *data;
     data = (struct encypt_data*) fs->private_data;
+    if(data->message != NULL){
+        vfree(data->message);
+    }
     vfree(data);
 
     printk(KERN_INFO "closed\n");
@@ -160,27 +164,25 @@ static int myClose(struct inode *inode, struct file *fs) {
 }
 
 static long myIoCtl(struct file *fs, unsigned int command, unsigned long info) {
-    //static long device_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param)
     struct encypt_data *data;
     data = (struct encypt_data*) fs->private_data;
 
-    printk(KERN_INFO "INSIDE IOCTL\n");
-
     switch (command) {
-        // case IOCTL_SET_KEY:
-        //     if(copy_from_user(&(data->key), (int *)info, sizeof(int)) > 0){
-        //         printk(KERN_ERR "ERROR GETTING THE KEY\n");
-        //     }
-        //     printk(KERN_INFO "the key: %d\n", data->key);
-        //     break;
-        case IOCTL_SET_MOD:
+        case IOCTL_SET_KEY: //the command is to set the key
+            printk(KERN_INFO "set key.\n");
+            if(copy_from_user(&(data->key), (int *)info, sizeof(int)) > 0){
+                printk(KERN_ERR "ERROR GETTING THE KEY\n");
+                printk(KERN_INFO "USE DEFAULT KEY VALUE 0\n");
+            }
+            break;
+        case IOCTL_SET_MOD: //the command is to set the mode 
+            printk(KERN_INFO "set mode.\n");
             if(copy_from_user(&(data->mode), (int *)info, sizeof(int)) > 0){
                 printk(KERN_ERR "ERROR GETTING THE MODE\n");
+                printk(KERN_INFO "USE DEFAULT mode VALUE: ENCRYPTED_MODE\n");
             }
-            printk(KERN_INFO "the mode: %d\n", data->mode);
             break;
         default:
-            // printf("failed in myioctl\n");
             printk(KERN_ERR "failed in myioctl.\n");
             return -1;
     }
