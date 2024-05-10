@@ -1,3 +1,17 @@
+/**************************************************************
+* Class::  CSC-415-03 Spring 2024
+* Name:: Lylia Melahi
+* Student ID:: 923677843
+* GitHub-Name:: lyly-mel
+* Project:: Assignment 6 - Device Driver
+*
+* File:: simpleDriver.c
+*
+* Description:: this file is a simple encryption device 
+* driver. it encrypt or decrypt the user input. Then read 
+* back the result to the user interface.
+**************************************************************/
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
@@ -125,6 +139,7 @@ static ssize_t myRead(struct file *fs, char __user *buf, size_t hsize, loff_t *o
         return -1; // Error copying data to user space
     }
 
+    printk(KERN_INFO "THE RESULT IS: %s\n", data->message);
     printk(KERN_INFO "We read : %lu \n", bytes_to_read);
 
     //return the bytes read
